@@ -1,1 +1,428 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PlantAI - Système Intelligent de Détection des Maladies</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .gradient-bg { background: linear-gradient(135deg, #10b981 0%, #059669 50%, #047857 100%); }
+        .glass-effect { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); }
+        .scan-line { animation: scan 2s linear infinite; }
+        @keyframes scan { 0% { top: 0%; } 100% { top: 100%; } }
+        .pulse-ring { animation: pulse-ring 2s cubic-bezier(0.215, 0.61, 0.355, 1) infinite; }
+        @keyframes pulse-ring { 0% { transform: scale(0.8); opacity: 0.5; } 100% { transform: scale(1.2); opacity: 0; } }
+        .microservice-node { transition: all 0.3s ease; }
+        .microservice-node.active { box-shadow: 0 0 20px rgba(16, 185, 129, 0.6); transform: scale(1.05); }
+        .data-flow { stroke-dasharray: 5,5; animation: dash 1s linear infinite; }
+        @keyframes dash { to { stroke-dashoffset: -10; } }
+        .disease-card { transition: all 0.3s ease; }
+        .disease-card:hover { transform: translateY(-5px); box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1); }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800">
 
+    <!-- Navigation -->
+    <nav class="fixed w-full z-50 glass-effect border-b border-gray-200">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex justify-between h-16 items-center">
+                <div class="flex items-center gap-2">
+                    <i data-lucide="leaf" class="w-8 h-8 text-emerald-600"></i>
+                    <span class="font-bold text-xl text-emerald-800">PlantAI</span>
+                </div>
+                <div class="hidden md:flex space-x-8">
+                    <button onclick="showSection('home')" class="text-gray-700 hover:text-emerald-600 font-medium transition">Accueil</button>
+                    <button id="nav-diagnostic" onclick="showSection('diagnostic')" class="hidden text-gray-700 hover:text-emerald-600 font-medium transition">Diagnostic</button>
+                    <button id="nav-history" onclick="showSection('history')" class="hidden text-gray-700 hover:text-emerald-600 font-medium transition">Historique</button>
+                </div>
+                <div class="hidden md:flex items-center gap-4">
+                    <button onclick="showSection('auth')" class="px-4 py-2 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 transition flex items-center gap-2">
+                        <i data-lucide="user" class="w-4 h-4"></i>
+                        Connexion
+                    </button>
+                </div>
+                <div class="flex items-center gap-4">
+                    <button class="md:hidden" onclick="toggleMobileMenu()">
+                        <i data-lucide="menu" class="w-6 h-6"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+        <!-- Mobile menu -->
+        <div id="mobile-menu" class="hidden md:hidden bg-white border-t">
+            <div class="px-2 pt-2 pb-3 space-y-1">
+                <button onclick="showSection('home')" class="block w-full text-left px-3 py-2 text-gray-700 hover:bg-emerald-50 rounded-md">Accueil</button>
+                <button id="nav-diagnostic-mobile" onclick="showSection('diagnostic')" class="hidden block w-full text-left px-3 py-2 text-gray-700 hover:bg-emerald-50 rounded-md">Diagnostic</button>
+                <button id="nav-history-mobile" onclick="showSection('history')" class="hidden block w-full text-left px-3 py-2 text-gray-700 hover:bg-emerald-50 rounded-md">Historique</button>
+                <button onclick="showSection('auth')" class="block w-full text-left px-3 py-2 text-emerald-700 bg-emerald-50 rounded-md font-medium">Connexion / Inscription</button>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Home Section -->
+    <section id="home" class="pt-24 pb-12 px-4 sm:px-6 lg:px-8 min-h-screen">
+        <div class="max-w-7xl mx-auto">
+            <div class="grid lg:grid-cols-2 gap-12 items-center">
+                <div class="space-y-8">
+                    <h1 class="text-5xl md:text-6xl font-bold text-gray-900 leading-tight">
+                        Détection Intelligente des <span class="text-emerald-600">Maladies des Plantes</span>
+                    </h1>
+                    <p class="text-xl text-gray-600 leading-relaxed">
+                        Utilisez l'intelligence artificielle pour identifier instantanément les maladies parasites et les carences nutritives. 
+                        Notre architecture microservices assure une scalabilité et une précision optimales.
+                    </p>
+                    <div class="flex flex-wrap gap-4">
+                        <button onclick="showSection('diagnostic')" class="px-8 py-4 gradient-bg text-white rounded-xl font-semibold hover:shadow-lg hover:scale-105 transition flex items-center gap-2">
+                            <i data-lucide="scan-line" class="w-5 h-5"></i>
+                            Commencer l'Analyse
+                        </button>
+                        <button onclick="showSection('architecture')" class="px-8 py-4 bg-white border-2 border-emerald-600 text-emerald-600 rounded-xl font-semibold hover:bg-emerald-50 transition flex items-center gap-2">
+                            <i data-lucide="network" class="w-5 h-5"></i>
+                            Voir l'Architecture
+                        </button>
+                    </div>
+                    <div class="grid grid-cols-3 gap-6 pt-8 border-t">
+                        <div>
+                            <div class="text-3xl font-bold text-emerald-600">98.5%</div>
+                            <div class="text-sm text-gray-600">Précision</div>
+                        </div>
+                        <div>
+                            <div class="text-3xl font-bold text-emerald-600">50+</div>
+                            <div class="text-sm text-gray-600">Maladies Détectées</div>
+                        </div>
+                        <div>
+                            <div class="text-3xl font-bold text-emerald-600">&lt;2s</div>
+                            <div class="text-sm text-gray-600">Temps Réponse</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="relative">
+                    <div class="absolute inset-0 gradient-bg rounded-3xl transform rotate-3 opacity-20"></div>
+                    <img src="http://static.photos/nature/1024x576/42" alt="Plante saine" class="relative rounded-3xl shadow-2xl w-full object-cover h-[500px]">
+                    </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Diagnostic Section -->
+    <section id="diagnostic" class="hidden pt-24 pb-12 px-4 sm:px-6 lg:px-8 min-h-screen">
+        <div class="max-w-4xl mx-auto">
+            <div class="text-center mb-12">
+                <h2 class="text-3xl font-bold text-gray-900 mb-4">Analyse d'Image</h2>
+                <p class="text-gray-600">Prenez une photo ou téléchargez une image de la feuille à analyser</p>
+            </div>
+
+            <!-- Upload Area -->
+            <div id="upload-area" class="relative">
+                <div class="border-2 border-dashed border-emerald-300 rounded-3xl p-12 text-center hover:border-emerald-500 transition bg-emerald-50/50 cursor-pointer" onclick="document.getElementById('file-input').click()">
+                    <input type="file" id="file-input" class="hidden" accept="image/*" onchange="handleFileSelect(event)">
+                    <div class="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <i data-lucide="upload-cloud" class="w-10 h-10 text-emerald-600"></i>
+                    </div>
+                    <h3 class="text-lg font-semibold text-gray-900 mb-2">Glissez-déposez votre image ici</h3>
+                    <p class="text-gray-500 mb-4">ou cliquez pour parcourir (JPG, PNG, max 10MB)</p>
+                    <button class="px-6 py-2 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 transition">
+                        Sélectionner un fichier
+                    </button>
+                </div>
+                
+                <!-- Camera Button -->
+                <button onclick="openCamera()" class="mt-4 w-full py-3 border-2 border-gray-300 rounded-xl flex items-center justify-center gap-2 hover:border-emerald-500 hover:text-emerald-600 transition">
+                    <i data-lucide="camera" class="w-5 h-5"></i>
+                    Utiliser l'appareil photo
+                </button>
+            </div>
+
+            <!-- Camera Modal -->
+            <div id="camera-modal" class="hidden fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4">
+                <div class="bg-white rounded-2xl p-4 max-w-lg w-full">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="font-semibold">Capture d'image</h3>
+                        <button onclick="closeCamera()" class="p-2 hover:bg-gray-100 rounded-full">
+                            <i data-lucide="x" class="w-5 h-5"></i>
+                        </button>
+                    </div>
+                    <video id="camera-video" class="w-full rounded-lg bg-black" autoplay playsinline></video>
+                    <button onclick="capturePhoto()" class="mt-4 w-full py-3 gradient-bg text-white rounded-lg font-medium">
+                        <i data-lucide="camera" class="w-5 h-5 inline mr-2"></i>
+                        Capturer
+                    </button>
+                </div>
+            </div>
+
+            <!-- Analysis Progress -->
+            <div id="analysis-progress" class="hidden mt-8">
+                <div class="bg-white rounded-2xl shadow-lg p-8">
+                    <div class="flex items-center justify-center mb-6">
+                        <div class="relative w-32 h-32">
+                            <div class="absolute inset-0 border-4 border-emerald-200 rounded-full"></div>
+                            <div class="absolute inset-0 border-4 border-emerald-600 rounded-full border-t-transparent animate-spin"></div>
+                            <div class="absolute inset-0 flex items-center justify-center">
+                                <i data-lucide="brain" class="w-12 h-12 text-emerald-600"></i>
+                            </div>
+                        </div>
+                    </div>
+                    <h3 class="text-center font-semibold text-lg mb-2">Analyse en cours...</h3>
+                    <p id="analysis-status" class="text-center text-gray-500 text-sm mb-4">Initialisation du modèle Deep Learning</p>
+                    
+                    <!-- Microservices Steps -->
+                    <div class="space-y-3 max-w-md mx-auto">
+                        <div id="step-1" class="flex items-center gap-3 p-3 rounded-lg bg-gray-50">
+                            <div class="w-6 h-6 rounded-full bg-gray-300 flex items-center justify-center text-white text-xs">1</div>
+                            <span class="text-sm">Prétraitement de l'image</span>
+                            <i data-lucide="loader-2" class="w-4 h-4 ml-auto animate-spin text-emerald-600 hidden"></i>
+                        </div>
+                        <div id="step-2" class="flex items-center gap-3 p-3 rounded-lg bg-gray-50">
+                            <div class="w-6 h-6 rounded-full bg-gray-300 flex items-center justify-center text-white text-xs">2</div>
+                            <span class="text-sm">Extraction des caractéristiques (CNN)</span>
+                        </div>
+                        <div id="step-3" class="flex items-center gap-3 p-3 rounded-lg bg-gray-50">
+                            <div class="w-6 h-6 rounded-full bg-gray-300 flex items-center justify-center text-white text-xs">3</div>
+                            <span class="text-sm">Classification et prédiction</span>
+                        </div>
+                        <div id="step-4" class="flex items-center gap-3 p-3 rounded-lg bg-gray-50">
+                            <div class="w-6 h-6 rounded-full bg-gray-300 flex items-center justify-center text-white text-xs">4</div>
+                            <span class="text-sm">Génération des recommandations</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Results -->
+            <div id="results" class="hidden mt-8 space-y-6">
+                <div class="bg-white rounded-2xl shadow-lg overflow-hidden">
+                    <div class="grid md:grid-cols-2">
+                        <div class="relative h-64 md:h-auto">
+                            <img id="result-image" src="" alt="Plante analysée" class="w-full h-full object-cover">
+                            <div class="absolute top-4 left-4 bg-emerald-500 text-white px-3 py-1 rounded-full text-sm font-medium flex items-center gap-1">
+                                <i data-lucide=" Activity" class="w-4 h-4"></i>
+                                <span id="confidence-score">98%</span>
+                            </div>
+                        </div>
+                        <div class="p-6 md:p-8">
+                            <div class="flex items-center gap-2 mb-2">
+                                <span class="px-2 py-1 bg-red-100 text-red-700 rounded text-xs font-medium" id="disease-severity">Sévère</span>
+                                <span class="text-gray-400 text-sm" id="processing-time">Traité en 1.2s</span>
+                            </div>
+                            <h3 class="text-2xl font-bold text-gray-900 mb-2" id="disease-name">Mildiou de la tomate</h3>
+                            <p class="text-gray-600 mb-6" id="disease-description">
+                                Maladie fongique causée par Phytophthora infestans. Se manifeste par des taches sombres sur les feuilles et les fruits.
+                            </p>
+                            
+                            <div class="space-y-4">
+                                <div class="flex items-start gap-3">
+                                    <div class="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
+                                        <i data-lucide="spray-can" class="w-4 h-4 text-blue-600"></i>
+                                    </div>
+                                    <div>
+                                        <h4 class="font-semibold text-sm">Traitement Recommandé</h4>
+                                        <p class="text-sm text-gray-600" id="treatment-text">Application de fongicide à base de cuivre. Retirer les feuilles infectées.</p>
+                                    </div>
+                                </div>
+                                <div class="flex items-start gap-3">
+                                    <div class="w-8 h-8 bg-amber-100 rounded-full flex items-center justify-center flex-shrink-0">
+                                        <i data-lucide="shield" class="w-4 h-4 text-amber-600"></i>
+                                    </div>
+                                    <div>
+                                        <h4 class="font-semibold text-sm">Prévention</h4>
+                                        <p class="text-sm text-gray-600" id="prevention-text">Espacer les plants pour une bonne aération. Éviter l'arrosage par le feuillage.</p>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <button onclick="resetAnalysis()" class="mt-6 w-full py-3 border-2 border-gray-200 rounded-xl font-medium hover:border-emerald-500 hover:text-emerald-600 transition">
+                                Nouvelle Analyse
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Similar Diseases -->
+                <div class="bg-white rounded-2xl shadow-lg p-6">
+                    <h3 class="font-bold text-lg mb-4">Maladies Similaires Détectées</h3>
+                    <div class="grid md:grid-cols-3 gap-4" id="similar-diseases">
+                        <!-- Dynamically populated -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Auth Section -->
+    <section id="auth" class="hidden pt-24 pb-12 px-4 sm:px-6 lg:px-8 min-h-screen">
+        <div class="max-w-md mx-auto">
+            <!-- Auth Tabs -->
+            <div class="bg-white rounded-2xl shadow-lg p-8">
+                <div class="flex gap-4 mb-8 border-b">
+                    <button onclick="switchAuthTab('login')" id="tab-login" class="flex-1 pb-4 text-center font-semibold text-emerald-600 border-b-2 border-emerald-600 transition">
+                        Connexion
+                    </button>
+                    <button onclick="switchAuthTab('register')" id="tab-register" class="flex-1 pb-4 text-center font-semibold text-gray-400 border-b-2 border-transparent hover:text-gray-600 transition">
+                        Inscription
+                    </button>
+                </div>
+
+                <!-- Login Form -->
+                <form id="login-form" class="space-y-6" onsubmit="handleLogin(event)">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Email</label>
+                        <div class="relative">
+                            <i data-lucide="mail" class="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
+                            <input type="email" id="login-email" required class="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition" placeholder="votre@email.com">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Mot de passe</label>
+                        <div class="relative">
+                            <i data-lucide="lock" class="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
+                            <input type="password" id="login-password" required class="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition" placeholder="••••••••">
+                        </div>
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <label class="flex items-center">
+                            <input type="checkbox" class="w-4 h-4 text-emerald-600 border-gray-300 rounded focus:ring-emerald-500">
+                            <span class="ml-2 text-sm text-gray-600">Se souvenir de moi</span>
+                        </label>
+                        <a href="#" class="text-sm text-emerald-600 hover:text-emerald-700">Mot de passe oublié?</a>
+                    </div>
+                    <button type="submit" class="w-full py-3 gradient-bg text-white rounded-lg font-semibold hover:shadow-lg transition">
+                        Se connecter
+                    </button>
+                </form>
+
+                <!-- Register Form -->
+                <form id="register-form" class="space-y-6 hidden" onsubmit="handleRegister(event)">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Nom complet</label>
+                        <div class="relative">
+                            <i data-lucide="user" class="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
+                            <input type="text" id="register-name" required class="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition" placeholder="Jean Dupont">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Email</label>
+                        <div class="relative">
+                            <i data-lucide="mail" class="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
+                            <input type="email" id="register-email" required class="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition" placeholder="votre@email.com">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Mot de passe</label>
+                        <div class="relative">
+                            <i data-lucide="lock" class="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
+                            <input type="password" id="register-password" required minlength="6" class="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition" placeholder="••••••••">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Confirmer le mot de passe</label>
+                        <div class="relative">
+                            <i data-lucide="lock" class="w-5 h-5 absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
+                            <input type="password" id="register-password-confirm" required class="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition" placeholder="••••••••">
+                        </div>
+                    </div>
+                    <div class="flex items-center">
+                        <input type="checkbox" required class="w-4 h-4 text-emerald-600 border-gray-300 rounded focus:ring-emerald-500">
+                        <span class="ml-2 text-sm text-gray-600">J'accepte les <a href="#" class="text-emerald-600 hover:underline">conditions d'utilisation</a></span>
+                    </div>
+                    <button type="submit" class="w-full py-3 gradient-bg text-white rounded-lg font-semibold hover:shadow-lg transition">
+                        Créer un compte
+                    </button>
+                </form>
+
+                <!-- User Profile (shown when logged in) -->
+                <div id="user-profile" class="hidden text-center">
+                    <div class="w-24 h-24 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <i data-lucide="user" class="w-12 h-12 text-emerald-600"></i>
+                    </div>
+                    <h3 class="text-xl font-bold text-gray-900 mb-1" id="user-name">Utilisateur</h3>
+                    <p class="text-gray-600 mb-6" id="user-email">email@example.com</p>
+                    
+                    <div class="grid grid-cols-2 gap-4 mb-6">
+                        <div class="bg-emerald-50 p-4 rounded-xl">
+                            <div class="text-2xl font-bold text-emerald-600" id="user-analyses">0</div>
+                            <div class="text-xs text-gray-600">Analyses</div>
+                        </div>
+                        <div class="bg-blue-50 p-4 rounded-xl">
+                            <div class="text-2xl font-bold text-blue-600" id="user-since">2024</div>
+                            <div class="text-xs text-gray-600">Membre depuis</div>
+                        </div>
+                    </div>
+
+                    <button onclick="logout()" class="w-full py-3 border-2 border-red-300 text-red-600 rounded-lg font-semibold hover:bg-red-50 transition">
+                        <i data-lucide="log-out" class="w-4 h-4 inline mr-2"></i>
+                        Déconnexion
+                    </button>
+                </div>
+            </div>
+
+            <!-- Social Login -->
+            <div class="mt-8">
+                <div class="relative">
+                    <div class="absolute inset-0 flex items-center">
+                        <div class="w-full border-t border-gray-300"></div>
+                    </div>
+                    <div class="relative flex justify-center text-sm">
+                        <span class="px-2 bg-gray-50 text-gray-500">Ou continuer avec</span>
+                    </div>
+                </div>
+                <div class="mt-6 grid grid-cols-2 gap-4">
+                    <button onclick="socialLogin('google')" class="w-full flex items-center justify-center gap-2 px-4 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 transition">
+                        <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+                            <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                            <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+                            <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+                        </svg>
+                        <span class="text-sm font-medium">Google</span>
+                    </button>
+                    <button onclick="socialLogin('github')" class="w-full flex items-center justify-center gap-2 px-4 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 transition">
+                        <svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                            <path fill-rule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clip-rule="evenodd"/>
+                        </svg>
+                        <span class="text-sm font-medium">GitHub</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- History Section -->
+    <section id="history" class="hidden pt-24 pb-12 px-4 sm:px-6 lg:px-8 min-h-screen">
+        <div class="max-w-6xl mx-auto">
+            <div class="flex justify-between items-center mb-8">
+                <div>
+                    <h2 class="text-3xl font-bold text-gray-900">Historique des Diagnostics</h2>
+                    <p class="text-gray-600 mt-1" id="history-count">0 analyses effectuées</p>
+                </div>
+                <button onclick="clearHistory()" class="px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg transition flex items-center gap-2">
+                    <i data-lucide="trash-2" class="w-4 h-4"></i>
+                    Effacer l'historique
+                </button>
+            </div>
+
+            <div id="history-list" class="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <!-- History items will be populated here -->
+            </div>
+
+            <div id="empty-history" class="text-center py-12">
+                <div class="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <i data-lucide="clipboard-list" class="w-12 h-12 text-gray-400"></i>
+                </div>
+                <h3 class="text-lg font-semibold text-gray-900 mb-2">Aucun historique</h3>
+                <p class="text-gray-600 mb-4">Commencez par analyser votre première plante</p>
+                <button onclick="showSection('diagnostic')" class="px-6 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition">
+                    Nouvelle Analyse
+                </button>
+            </div>
+        </div>
+    </section>
+
+    <script src="script.js"></script>
+    <script>
+        lucide.createIcons();
+    </script>
+</body>
+</html>
