@@ -1,4 +1,57 @@
 const { useState, useEffect, useRef } = React;
+const API_BASE = "http://127.0.0.1:8000";
+const GOOGLE_CLIENT_ID =
+  "774644744854-123od2rimp87fqov27nivhln25md3a94.apps.googleusercontent.com";
+
+const formatApiErrorDetail = (data) => {
+  if (!data) return "Erreur serveur (réponse vide)";
+  const d = data.detail;
+  if (typeof d === "string") return d;
+  if (Array.isArray(d)) {
+    return d
+      .map((item) => {
+        if (typeof item !== "object" || !item) return String(item);
+        if (item.msg) return item.msg;
+        if (item.message) return item.message;
+        return JSON.stringify(item);
+      })
+      .join(" · ");
+  }
+  if (d && typeof d === "object") return JSON.stringify(d);
+  return "Requête refusée";
+};
+
+const errorToMessage = (err) => {
+  if (err instanceof Error && err.message) return err.message;
+  if (typeof err === "string") return err;
+  return String(err);
+};
+
+const apiRequest = async (path, options = {}) => {
+  let response;
+  try {
+    response = await fetch(`${API_BASE}${path}`, options);
+  } catch (e) {
+    throw new Error(
+      "Serveur injoignable. Lancez le backend: uvicorn app.main:app --host 127.0.0.1 --port 8000"
+    );
+  }
+  let data = null;
+  try {
+    data = await response.json();
+  } catch (e) {
+    data = null;
+  }
+
+  if (!response.ok) {
+    let msg = formatApiErrorDetail(data);
+    if (msg === "Erreur serveur (réponse vide)") {
+      msg = `HTTP ${response.status} — vérifiez que l'API tourne sur ${API_BASE}`;
+    }
+    throw new Error(msg);
+  }
+  return data;
+};
 
 // Translations data
 const translations = {
@@ -441,6 +494,7 @@ const HomeSection = ({ currentLang, setCurrentSection, currentUser }) => {
 const DiagnosticSection = ({
   currentLang,
   currentUser,
+  currentToken,
   setHistory,
   setNotification,
   history,
@@ -455,28 +509,18 @@ const DiagnosticSection = ({
   const streamRef = useRef(null);
   const fileInputRef = useRef(null);
 
-  const analyzeWithML = () => {
-    const random = Math.random() * 100;
-    let selectedDisease;
+  const processImage = async (file) => {
+    if (!currentToken) {
+      setNotification({
+        message:
+          currentLang === "fr"
+            ? "Veuillez vous connecter pour analyser."
+            : "Please login to analyze images.",
+        type: "error",
+      });
+      return;
+    }
 
-    if (random > 70) selectedDisease = diseaseDatabase[0];
-    else if (random > 40) selectedDisease = diseaseDatabase[1];
-    else selectedDisease = diseaseDatabase[2];
-
-    const confidence = Math.min(
-      99,
-      selectedDisease.confidence + (Math.random() * 4 - 2)
-    );
-
-    return {
-      ...selectedDisease,
-      confidence: confidence.toFixed(1),
-      timestamp: new Date().toISOString(),
-      id: Date.now(),
-    };
-  };
-
-  const processImage = (file) => {
     if (!file.type.startsWith("image/")) {
       setNotification({
         message:
@@ -491,22 +535,41 @@ const DiagnosticSection = ({
     setCurrentView("analyzing");
     setAnalysisStep(0);
 
-    // Simulate steps
-    setTimeout(() => setAnalysisStep(1), 1000);
-    setTimeout(() => setAnalysisStep(2), 2000);
-    setTimeout(() => setAnalysisStep(3), 3000);
+    try {
+      await new Promise((r) => setTimeout(r, 700));
+      setAnalysisStep(1);
+      await new Promise((r) => setTimeout(r, 700));
+      setAnalysisStep(2);
+      await new Promise((r) => setTimeout(r, 700));
+      setAnalysisStep(3);
 
-    setTimeout(() => {
-      const result = analyzeWithML();
-      setAnalysisResult(result);
+      const formData = new FormData();
+      formData.append("file", file);
+      const result = await apiRequest("/predict/analyze", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${currentToken}`,
+        },
+        body: formData,
+      });
+
+      const mappedResult = {
+        id: Date.now(),
+        disease_name: result.disease_name,
+        confidence: result.confidence,
+        severity: result.severity,
+        treatment: result.treatment,
+        prevention: result.prevention,
+        timestamp: result.created_at,
+      };
+
+      setAnalysisResult(mappedResult);
       setCurrentView("results");
 
-      // Save to history
       const reader = new FileReader();
       reader.onload = (e) => {
-        const historyItem = { ...result, imageData: e.target.result };
+        const historyItem = { ...mappedResult, imageData: e.target.result };
         const newHistory = [historyItem, ...history].slice(0, 50);
-        localStorage.setItem("plantHistory", JSON.stringify(newHistory));
         setHistory(newHistory);
       };
       reader.readAsDataURL(file);
@@ -516,7 +579,16 @@ const DiagnosticSection = ({
           currentLang === "fr" ? "Analyse terminée!" : "Analysis complete!",
         type: "success",
       });
-    }, 4000);
+    } catch (err) {
+      setCurrentView("upload");
+      setNotification({
+        message:
+          currentLang === "fr"
+            ? "Echec de l'analyse via le backend."
+            : "Backend analysis failed.",
+        type: "error",
+      });
+    }
   };
 
   const handleFileSelect = (e) => {
@@ -779,14 +851,17 @@ const DiagnosticSection = ({
                     </span>
                   </div>
                   <h3 className="text-2xl font-bold text-gray-900 mb-2">
-                    {currentLang === "fr"
-                      ? analysisResult.name
-                      : analysisResult.nameEn}
+                    {analysisResult.disease_name ||
+                      (currentLang === "fr"
+                        ? analysisResult.name
+                        : analysisResult.nameEn)}
                   </h3>
                   <p className="text-gray-600 mb-6">
                     {currentLang === "fr"
-                      ? analysisResult.description
-                      : analysisResult.descriptionEn}
+                      ? analysisResult.description ||
+                        "Diagnostic genere par le backend."
+                      : analysisResult.descriptionEn ||
+                        "Diagnosis generated by backend."}
                   </p>
 
                   <div className="space-y-4">
@@ -804,7 +879,8 @@ const DiagnosticSection = ({
                         <p className="text-sm text-gray-600">
                           {currentLang === "fr"
                             ? analysisResult.treatment
-                            : analysisResult.treatmentEn}
+                            : analysisResult.treatmentEn ||
+                              analysisResult.treatment}
                         </p>
                       </div>
                     </div>
@@ -822,7 +898,8 @@ const DiagnosticSection = ({
                         <p className="text-sm text-gray-600">
                           {currentLang === "fr"
                             ? analysisResult.prevention
-                            : analysisResult.preventionEn}
+                            : analysisResult.preventionEn ||
+                              analysisResult.prevention}
                         </p>
                       </div>
                     </div>
@@ -848,11 +925,13 @@ const DiagnosticSection = ({
 const AuthSection = ({
   currentLang,
   setCurrentUser,
+  setCurrentToken,
   setCurrentSection,
   setNotification,
 }) => {
   const t = translations[currentLang];
   const [activeTab, setActiveTab] = useState("login");
+  const googleButtonRef = useRef(null);
   const [loginData, setLoginData] = useState({ email: "", password: "" });
   const [registerData, setRegisterData] = useState({
     name: "",
@@ -861,34 +940,37 @@ const AuthSection = ({
     confirmPassword: "",
   });
 
-  const handleLogin = (e) => {
+  const handleLogin = async (e) => {
     e.preventDefault();
-    const users = JSON.parse(localStorage.getItem("plantUsers")) || [];
-    const user = users.find(
-      (u) => u.email === loginData.email && u.password === loginData.password
-    );
+    try {
+      const data = await apiRequest("/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: loginData.email,
+          password: loginData.password,
+        }),
+      });
 
-    if (user) {
-      setCurrentUser(user);
-      localStorage.setItem("plantUser", JSON.stringify(user));
+      setCurrentUser(data.user);
+      setCurrentToken(data.access_token);
+      localStorage.setItem("plantUser", JSON.stringify(data.user));
+      localStorage.setItem("plantToken", data.access_token);
       setNotification({
         message:
           currentLang === "fr" ? "Connexion réussie!" : "Login successful!",
         type: "success",
       });
       setCurrentSection("diagnostic");
-    } else {
+    } catch (err) {
       setNotification({
-        message:
-          currentLang === "fr"
-            ? "Email ou mot de passe incorrect"
-            : "Invalid email or password",
+        message: errorToMessage(err),
         type: "error",
       });
     }
   };
 
-  const handleRegister = (e) => {
+  const handleRegister = async (e) => {
     e.preventDefault();
     if (registerData.password !== registerData.confirmPassword) {
       setNotification({
@@ -901,58 +983,90 @@ const AuthSection = ({
       return;
     }
 
-    const users = JSON.parse(localStorage.getItem("plantUsers")) || [];
-    if (users.find((u) => u.email === registerData.email)) {
+    try {
+      const data = await apiRequest("/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: registerData.name,
+          email: registerData.email,
+          password: registerData.password,
+        }),
+      });
+
+      setCurrentUser(data.user);
+      setCurrentToken(data.access_token);
+      localStorage.setItem("plantUser", JSON.stringify(data.user));
+      localStorage.setItem("plantToken", data.access_token);
       setNotification({
         message:
           currentLang === "fr"
-            ? "Cet email est déjà utilisé"
-            : "This email is already in use",
+            ? "Compte créé avec succès!"
+            : "Account created successfully!",
+        type: "success",
+      });
+      setCurrentSection("diagnostic");
+    } catch (err) {
+      setNotification({
+        message: errorToMessage(err),
         type: "error",
       });
+    }
+  };
+
+  const handleGoogleCredential = async (credential) => {
+    try {
+      const data = await apiRequest("/auth/google", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ credential }),
+      });
+
+      setCurrentUser(data.user);
+      setCurrentToken(data.access_token);
+      localStorage.setItem("plantUser", JSON.stringify(data.user));
+      localStorage.setItem("plantToken", data.access_token);
+      setNotification({
+        message:
+          currentLang === "fr"
+            ? "Connexion Google réussie!"
+            : "Google login successful!",
+        type: "success",
+      });
+      setCurrentSection("diagnostic");
+    } catch (err) {
+      setNotification({
+        message: errorToMessage(err),
+        type: "error",
+      });
+    }
+  };
+
+  useEffect(() => {
+    if (!window.google || !window.google.accounts || !window.google.accounts.id) {
       return;
     }
 
-    const newUser = {
-      id: Date.now(),
-      name: registerData.name,
-      email: registerData.email,
-      password: registerData.password,
-      createdAt: new Date().toISOString(),
-    };
+    if (!GOOGLE_CLIENT_ID || GOOGLE_CLIENT_ID === "PUT_YOUR_GOOGLE_CLIENT_ID_HERE") {
+      return;
+    }
 
-    users.push(newUser);
-    localStorage.setItem("plantUsers", JSON.stringify(users));
-    setCurrentUser(newUser);
-    localStorage.setItem("plantUser", JSON.stringify(newUser));
-    setNotification({
-      message:
-        currentLang === "fr"
-          ? "Compte créé avec succès!"
-          : "Account created successfully!",
-      type: "success",
+    window.google.accounts.id.initialize({
+      client_id: GOOGLE_CLIENT_ID,
+      callback: (response) => handleGoogleCredential(response.credential),
     });
-    setCurrentSection("diagnostic");
-  };
 
-  const socialLogin = (provider) => {
-    const mockUser = {
-      id: Date.now(),
-      name: `User ${provider}`,
-      email: `user@${provider}.com`,
-      provider: provider,
-      createdAt: new Date().toISOString(),
-    };
-    setCurrentUser(mockUser);
-    localStorage.setItem("plantUser", JSON.stringify(mockUser));
-    setNotification({
-      message: `${provider} ${
-        currentLang === "fr" ? "connexion réussie!" : "login successful!"
-      }`,
-      type: "success",
-    });
-    setCurrentSection("diagnostic");
-  };
+    if (googleButtonRef.current) {
+      googleButtonRef.current.innerHTML = "";
+      window.google.accounts.id.renderButton(googleButtonRef.current, {
+        theme: "outline",
+        size: "large",
+        width: 300,
+        text: "signin_with",
+        shape: "pill",
+      });
+    }
+  }, [currentLang]);
 
   return (
     <section className="pt-24 pb-12 px-4 sm:px-6 lg:px-8 min-h-screen bg-[#F5F5DC]">
@@ -1155,48 +1269,17 @@ const AuthSection = ({
                 </span>
               </div>
             </div>
-            <div className="mt-6 grid grid-cols-2 gap-4">
-              <button
-                onClick={() => socialLogin("google")}
-                className="w-full flex items-center justify-center gap-2 px-4 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 transition"
-              >
-                <svg className="w-5 h-5" viewBox="0 0 24 24">
-                  <path
-                    fill="#4285F4"
-                    d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                  />
-                  <path
-                    fill="#34A853"
-                    d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                  />
-                  <path
-                    fill="#FBBC05"
-                    d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
-                  />
-                  <path
-                    fill="#EA4335"
-                    d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-                  />
-                </svg>
-                <span className="text-sm font-medium">Google</span>
-              </button>
-              <button
-                onClick={() => socialLogin("github")}
-                className="w-full flex items-center justify-center gap-2 px-4 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 transition"
-              >
-                <svg
-                  className="w-5 h-5"
-                  viewBox="0 0 24 24"
-                  fill="currentColor"
-                >
-                  <path
-                    fillRule="evenodd"
-                    d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z"
-                    clipRule="evenodd"
-                  />
-                </svg>
-                <span className="text-sm font-medium">GitHub</span>
-              </button>
+            <div className="mt-6 space-y-4">
+              <div className="flex justify-center">
+                <div ref={googleButtonRef}></div>
+              </div>
+              {(!GOOGLE_CLIENT_ID ||
+                GOOGLE_CLIENT_ID === "PUT_YOUR_GOOGLE_CLIENT_ID_HERE") && (
+                <p className="text-xs text-amber-700 text-center">
+                  Configure `GOOGLE_CLIENT_ID` in `le code/app.js` and backend
+                  env `GOOGLE_CLIENT_ID`.
+                </p>
+              )}
             </div>
           </div>
         </div>
@@ -1208,13 +1291,14 @@ const AuthSection = ({
 // History Section Component
 const HistorySection = ({
   currentLang,
+  currentToken,
   history,
   setHistory,
   setCurrentSection,
 }) => {
   const t = translations[currentLang];
 
-  const clearHistory = () => {
+  const clearHistory = async () => {
     if (
       confirm(
         currentLang === "fr"
@@ -1222,8 +1306,20 @@ const HistorySection = ({
           : "Do you really want to clear all history?"
       )
     ) {
-      setHistory([]);
-      localStorage.removeItem("plantHistory");
+      try {
+        if (currentToken) {
+          await apiRequest("/predict/history", {
+            method: "DELETE",
+            headers: {
+              Authorization: `Bearer ${currentToken}`,
+            },
+          });
+        }
+        setHistory([]);
+      } catch (err) {
+        // Keep UI responsive even if backend clear fails.
+        setHistory([]);
+      }
     }
   };
 
@@ -1277,11 +1373,20 @@ const HistorySection = ({
                 className="bg-white rounded-2xl shadow-lg overflow-hidden hover:-translate-y-1 hover:shadow-xl transition"
               >
                 <div className="h-48 overflow-hidden relative">
-                  <img
-                    src={item.imageData}
-                    alt={currentLang === "fr" ? item.name : item.nameEn}
-                    className="w-full h-full object-cover"
-                  />
+                  {item.imageData ? (
+                    <img
+                      src={item.imageData}
+                      alt={
+                        item.disease_name ||
+                        (currentLang === "fr" ? item.name : item.nameEn)
+                      }
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full bg-[#486F38]/10 flex items-center justify-center text-[#486F38] font-semibold">
+                      PlantAI
+                    </div>
+                  )}
                   <div className="absolute top-2 right-2 bg-white/90 px-2 py-1 rounded-lg text-xs font-bold text-[#486F38]">
                     {item.confidence}%
                   </div>
@@ -1289,7 +1394,7 @@ const HistorySection = ({
                 <div className="p-4">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-xs text-gray-500">
-                      {new Date(item.timestamp).toLocaleDateString(
+                      {new Date(item.timestamp || item.created_at).toLocaleDateString(
                         currentLang === "fr" ? "fr-FR" : "en-US"
                       )}
                     </span>
@@ -1303,12 +1408,13 @@ const HistorySection = ({
                     </span>
                   </div>
                   <h3 className="font-bold text-lg mb-1">
-                    {currentLang === "fr" ? item.name : item.nameEn}
+                    {item.disease_name ||
+                      (currentLang === "fr" ? item.name : item.nameEn)}
                   </h3>
                   <p className="text-sm text-gray-600 line-clamp-2 mb-3">
                     {currentLang === "fr"
-                      ? item.description
-                      : item.descriptionEn}
+                      ? item.description || item.treatment
+                      : item.descriptionEn || item.treatment}
                   </p>
                   <button
                     onClick={() => setCurrentSection("diagnostic")}
@@ -1333,6 +1439,9 @@ const App = () => {
     localStorage.getItem("plantLang") || "fr"
   );
   const [currentUser, setCurrentUser] = useState(null);
+  const [currentToken, setCurrentToken] = useState(
+    localStorage.getItem("plantToken") || ""
+  );
   const [history, setHistory] = useState([]);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [notification, setNotification] = useState(null);
@@ -1342,13 +1451,29 @@ const App = () => {
     const savedUser = localStorage.getItem("plantUser");
     if (savedUser) setCurrentUser(JSON.parse(savedUser));
 
-    // Load history
-    const savedHistory = localStorage.getItem("plantHistory");
-    if (savedHistory) setHistory(JSON.parse(savedHistory));
-
     // Save language preference
     localStorage.setItem("plantLang", currentLang);
   }, [currentLang]);
+
+  useEffect(() => {
+    const loadHistory = async () => {
+      if (!currentToken) {
+        setHistory([]);
+        return;
+      }
+      try {
+        const data = await apiRequest("/predict/history", {
+          headers: {
+            Authorization: `Bearer ${currentToken}`,
+          },
+        });
+        setHistory(data || []);
+      } catch (err) {
+        setHistory([]);
+      }
+    };
+    loadHistory();
+  }, [currentToken]);
 
   useEffect(() => {
     // Re-initialize Lucide icons after render
@@ -1359,7 +1484,10 @@ const App = () => {
 
   const handleLogout = () => {
     setCurrentUser(null);
+    setCurrentToken("");
     localStorage.removeItem("plantUser");
+    localStorage.removeItem("plantToken");
+    setHistory([]);
     setNotification({
       message:
         currentLang === "fr" ? "Déconnexion réussie" : "Logout successful",
@@ -1400,6 +1528,7 @@ const App = () => {
         <DiagnosticSection
           currentLang={currentLang}
           currentUser={currentUser}
+          currentToken={currentToken}
           setHistory={setHistory}
           history={history}
           setNotification={setNotification}
@@ -1410,6 +1539,7 @@ const App = () => {
         <AuthSection
           currentLang={currentLang}
           setCurrentUser={setCurrentUser}
+          setCurrentToken={setCurrentToken}
           setCurrentSection={setCurrentSection}
           setNotification={setNotification}
         />
@@ -1418,6 +1548,7 @@ const App = () => {
       {currentSection === "history" && (
         <HistorySection
           currentLang={currentLang}
+          currentToken={currentToken}
           history={history}
           setHistory={setHistory}
           setCurrentSection={setCurrentSection}

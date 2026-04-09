@@ -1,0 +1,8 @@
+fastapi
+uvicorn
+python-jose
+python-multipart
+pillow
+pydantic
+email-validator
+google-auth
