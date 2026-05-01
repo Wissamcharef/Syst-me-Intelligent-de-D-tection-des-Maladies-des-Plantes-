@@ -1,4 +1,28 @@
+# Python
 __pycache__/
+*.pyc
+
+# Environnement virtuel
+.venv/
+.venv311/
+venv/
+
+# Base de données locale
+*.db
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+
+# Google auth local files
+*.htm
+*_files/
+
+# Models (si lourds)
+*.pt
+*.pth__pycache__/
 *.pyc
 *.db
 .DS_Store
