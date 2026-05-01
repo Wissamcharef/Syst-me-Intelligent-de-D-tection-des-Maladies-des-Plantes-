@@ -21,6 +21,16 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 
+def _google_audience_matches(aud: object, expected: str) -> bool:
+    if not expected:
+        return False
+    if isinstance(aud, str):
+        return aud == expected
+    if isinstance(aud, (list, tuple, set)):
+        return expected in aud
+    return False
+
+
 @router.post("/register", response_model=TokenResponse)
 def register(payload: RegisterRequest) -> TokenResponse:
     with get_connection() as conn:
@@ -91,11 +101,18 @@ def login(payload: LoginRequest) -> TokenResponse:
 
 @router.post("/google", response_model=TokenResponse)
 def google_login(payload: GoogleLoginRequest) -> TokenResponse:
+    client_id = (settings.google_client_id or "").strip()
+    if not client_id:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Google Login is not configured on server (missing GOOGLE_CLIENT_ID)",
+        )
+
     try:
         id_info = id_token.verify_oauth2_token(
             payload.credential,
             requests.Request(),
-            settings.google_client_id if settings.google_client_id else None,
+            client_id,
         )
     except Exception as exc:
         logger.warning("Google token verification failed: %s", exc)
@@ -103,6 +120,25 @@ def google_login(payload: GoogleLoginRequest) -> TokenResponse:
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid Google credential (check Client ID and authorized origins in Google Cloud)",
         ) from exc
+
+    issuer = str(id_info.get("iss", "")).strip()
+    if issuer not in {"accounts.google.com", "https://accounts.google.com"}:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid Google credential issuer",
+        )
+
+    if not _google_audience_matches(id_info.get("aud"), client_id):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid Google credential audience (Client ID mismatch)",
+        )
+
+    if "email_verified" in id_info and not bool(id_info.get("email_verified")):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Google account email is not verified",
+        )
 
     email = str(id_info.get("email", "")).lower()
     if not email:

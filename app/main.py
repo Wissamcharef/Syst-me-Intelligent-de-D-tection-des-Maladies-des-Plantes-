@@ -1,7 +1,9 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.config import settings
 from app.db import init_db
+from app.models.model_loader import load_model
 from app.routes import auth, predict
 
 app = FastAPI(
@@ -24,6 +26,8 @@ app.add_middleware(
 @app.on_event("startup")
 def on_startup() -> None:
     init_db()
+    if settings.predict_mode.lower() == "local":
+        load_model()
 
 
 app.include_router(auth.router, prefix="/auth", tags=["Auth"])

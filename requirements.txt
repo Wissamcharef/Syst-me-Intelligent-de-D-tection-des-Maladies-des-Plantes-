@@ -6,3 +6,7 @@ pillow
 pydantic
 email-validator
 google-auth
+requests
+httpx
+python-dotenv
+numpy<2

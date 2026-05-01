@@ -1,0 +1,5 @@
+# Optional: inference avec le modèle local (Python 3.10–3.12 recommandés).
+# Sur Python 3.14, PyTorch n’est souvent pas encore disponible via pip pour macOS/Linux.
+numpy<2
+torch
+torchvision

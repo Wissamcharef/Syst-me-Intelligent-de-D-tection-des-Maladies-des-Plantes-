@@ -1,7 +1,8 @@
 from datetime import datetime, timezone
+from time import perf_counter
 from typing import List
 
-from fastapi import APIRouter, Depends, File, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 
 from app.db import get_connection
 from app.dependencies import get_current_user
@@ -16,11 +17,19 @@ async def analyze_image(
     file: UploadFile = File(...),
     current_user: dict = Depends(get_current_user),
 ) -> PredictionResponse:
-    prediction = await predict_disease(file)
+    start = perf_counter()
+    try:
+        prediction = await predict_disease(file)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+    execution_time_ms = round((perf_counter() - start) * 1000, 2)
     created_at = datetime.now(timezone.utc).isoformat()
 
     with get_connection() as conn:
-        conn.execute(
+        cursor = conn.execute(
             """
             INSERT INTO predictions
             (user_id, disease_name, confidence, severity, treatment, prevention, created_at)
@@ -38,7 +47,12 @@ async def analyze_image(
         )
         conn.commit()
 
-    return PredictionResponse(created_at=created_at, **prediction)
+    return PredictionResponse(
+        id=cursor.lastrowid,
+        created_at=created_at,
+        execution_time_ms=execution_time_ms,
+        **prediction,
+    )
 
 
 @router.get("/history", response_model=List[PredictionHistoryResponse])

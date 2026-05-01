@@ -1,7 +1,24 @@
 const { useState, useEffect, useRef } = React;
-const API_BASE = "http://127.0.0.1:8000";
+const API_BASES = ["http://127.0.0.1:8000", "http://127.0.0.1:8001"];
 const GOOGLE_CLIENT_ID =
-  "774644744854-123od2rimp87fqov27nivhln25md3a94.apps.googleusercontent.com";
+"774644744854-jhrc78ad37q2kb1ojroa6nm6e24pvam7.apps.googleusercontent.com";
+/** Affiche une fois par session l’origine à ajouter dans Google Cloud (erreur 400 origin_mismatch). */
+if (
+  typeof window !== "undefined" &&
+  typeof sessionStorage !== "undefined" &&
+  GOOGLE_CLIENT_ID &&
+  !GOOGLE_CLIENT_ID.startsWith("PUT_")
+) {
+  const k = "plantai_google_origin_hint";
+  if (!sessionStorage.getItem(k)) {
+    sessionStorage.setItem(k, "1");
+    console.info(
+      "[PlantAI] Connexion Google : dans Google Cloud Console → APIs & Services → Credentials → " +
+        "OAuth 2.0 Client ID (type « Application Web ») → Authorized JavaScript origins, ajoutez exactement :",
+      window.location.origin
+    );
+  }
+}
 
 const formatApiErrorDetail = (data) => {
   if (!data) return "Erreur serveur (réponse vide)";
@@ -27,13 +44,51 @@ const errorToMessage = (err) => {
   return String(err);
 };
 
+const PREDICTION_IMAGES_KEY = "plantPredictionImages";
+
+const loadPredictionImages = () => {
+  try {
+    const raw = localStorage.getItem(PREDICTION_IMAGES_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+};
+
+const savePredictionImage = (predictionId, imageData) => {
+  if (!predictionId || !imageData) return;
+  const map = loadPredictionImages();
+  map[String(predictionId)] = imageData;
+  try {
+    localStorage.setItem(PREDICTION_IMAGES_KEY, JSON.stringify(map));
+  } catch {
+    // Ignore quota errors.
+  }
+};
+
+const clearPredictionImages = () => {
+  try {
+    localStorage.removeItem(PREDICTION_IMAGES_KEY);
+  } catch {}
+};
+
 const apiRequest = async (path, options = {}) => {
   let response;
-  try {
-    response = await fetch(`${API_BASE}${path}`, options);
-  } catch (e) {
+  let usedApiBase = API_BASES[0];
+  for (const base of API_BASES) {
+    usedApiBase = base;
+    try {
+      response = await fetch(`${base}${path}`, options);
+      break;
+    } catch (e) {
+      response = null;
+    }
+  }
+  if (!response) {
     throw new Error(
-      "Serveur injoignable. Lancez le backend: uvicorn app.main:app --host 127.0.0.1 --port 8000"
+      "Serveur injoignable. Lancez le backend sur 127.0.0.1:8000 (local) ou 127.0.0.1:8001 (Docker)."
     );
   }
   let data = null;
@@ -46,7 +101,7 @@ const apiRequest = async (path, options = {}) => {
   if (!response.ok) {
     let msg = formatApiErrorDetail(data);
     if (msg === "Erreur serveur (réponse vide)") {
-      msg = `HTTP ${response.status} — vérifiez que l'API tourne sur ${API_BASE}`;
+      msg = `HTTP ${response.status} — vérifiez que l'API tourne sur ${usedApiBase}`;
     }
     throw new Error(msg);
   }
@@ -168,6 +223,42 @@ const translations = {
   },
 };
 
+/** Align backend severity strings (often English) with FR/EN badges */
+const severityLabels = {
+  low: { fr: "Faible", en: "Low" },
+  moderate: { fr: "Modérée", en: "Moderate" },
+  severe: { fr: "Sévère", en: "Severe" },
+};
+
+const normalizeSeverity = (severity) => {
+  const s = String(severity ?? "")
+    .trim()
+    .toLowerCase();
+
+  let level = "moderate";
+  if (
+    s === "low" ||
+    s === "faible" ||
+    s.includes("healthy")
+  ) {
+    level = "low";
+  } else if (
+    s === "severe" ||
+    s === "sévère" ||
+    /\bsevere\b/.test(s)
+  ) {
+    level = "severe";
+  } else if (
+    s === "moderate" ||
+    s === "modéré" ||
+    s === "modérée" ||
+    /\bmoderate\b/.test(s)
+  ) {
+    level = "moderate";
+  }
+  return severityLabels[level];
+};
+
 // Disease Database
 const diseaseDatabase = [
   {
@@ -232,12 +323,11 @@ const diseaseDatabase = [
   },
 ];
 
-// Severity colors helper
-const getSeverityColor = (severity, lang) => {
-  const sev = lang === "fr" ? severity : severity;
-  if (sev === "Sévère" || sev === "Severe") return "bg-red-100 text-red-700";
-  if (sev === "Modérée" || sev === "Moderate")
-    return "bg-yellow-100 text-yellow-700";
+// Severity colors helper (canonicalizes mixed FR/EN from API vs mock data)
+const getSeverityColor = (severity) => {
+  const { en } = normalizeSeverity(severity);
+  if (en === "Severe") return "bg-red-100 text-red-700";
+  if (en === "Moderate") return "bg-yellow-100 text-yellow-700";
   return "bg-green-100 text-green-700";
 };
 
@@ -536,12 +626,9 @@ const DiagnosticSection = ({
     setAnalysisStep(0);
 
     try {
-      await new Promise((r) => setTimeout(r, 700));
+      await new Promise((r) => setTimeout(r, 500));
+      // Only show preprocessing step (no extra technical steps).
       setAnalysisStep(1);
-      await new Promise((r) => setTimeout(r, 700));
-      setAnalysisStep(2);
-      await new Promise((r) => setTimeout(r, 700));
-      setAnalysisStep(3);
 
       const formData = new FormData();
       formData.append("file", file);
@@ -553,14 +640,20 @@ const DiagnosticSection = ({
         body: formData,
       });
 
+      const sev = normalizeSeverity(result.severity);
       const mappedResult = {
-        id: Date.now(),
+        id: result.id || Date.now(),
         disease_name: result.disease_name,
         confidence: result.confidence,
-        severity: result.severity,
+        top_predictions: Array.isArray(result.top_predictions)
+          ? result.top_predictions
+          : [],
+        severity: sev.fr,
+        severityEn: sev.en,
         treatment: result.treatment,
         prevention: result.prevention,
-        timestamp: result.created_at,
+        created_at: result.created_at,
+        execution_time_ms: result.execution_time_ms,
       };
 
       setAnalysisResult(mappedResult);
@@ -568,9 +661,10 @@ const DiagnosticSection = ({
 
       const reader = new FileReader();
       reader.onload = (e) => {
-        const historyItem = { ...mappedResult, imageData: e.target.result };
-        const newHistory = [historyItem, ...history].slice(0, 50);
-        setHistory(newHistory);
+        const imageData = e.target.result;
+        savePredictionImage(mappedResult.id, imageData);
+        const historyItem = { ...mappedResult, imageData };
+        setHistory((prev) => [historyItem, ...(prev || [])].slice(0, 50));
       };
       reader.readAsDataURL(file);
 
@@ -582,10 +676,7 @@ const DiagnosticSection = ({
     } catch (err) {
       setCurrentView("upload");
       setNotification({
-        message:
-          currentLang === "fr"
-            ? "Echec de l'analyse via le backend."
-            : "Backend analysis failed.",
+        message: errorToMessage(err),
         type: "error",
       });
     }
@@ -659,15 +750,6 @@ const DiagnosticSection = ({
 
   const steps = [
     { text: t.step1, delay: 0 },
-    { text: t.step2, delay: 1000 },
-    {
-      text:
-        currentLang === "fr"
-          ? "ResNet50 classification..."
-          : "ResNet50 classification...",
-      delay: 2000,
-    },
-    { text: t.step4, delay: 3000 },
   ];
 
   return (
@@ -791,9 +873,6 @@ const DiagnosticSection = ({
             <h3 className="text-center font-semibold text-lg mb-2">
               {t.analyzing}
             </h3>
-            <p className="text-center text-gray-500 text-sm mb-4">
-              {t.initModel}
-            </p>
 
             <div className="space-y-3 max-w-md mx-auto">
               {steps.map((step, idx) => (
@@ -835,73 +914,67 @@ const DiagnosticSection = ({
                   </div>
                 </div>
                 <div className="p-6 md:p-8">
-                  <div className="flex items-center gap-2 mb-2">
-                    <span
-                      className={`px-2 py-1 rounded text-xs font-medium ${getSeverityColor(
-                        analysisResult.severity,
-                        currentLang
-                      )}`}
-                    >
-                      {currentLang === "fr"
-                        ? analysisResult.severity
-                        : analysisResult.severityEn}
-                    </span>
-                    <span className="text-gray-400 text-sm">
-                      {t.processedIn} {(1.2 + Math.random()).toFixed(1)}s
-                    </span>
-                  </div>
-                  <h3 className="text-2xl font-bold text-gray-900 mb-2">
-                    {analysisResult.disease_name ||
-                      (currentLang === "fr"
-                        ? analysisResult.name
-                        : analysisResult.nameEn)}
+                  <h3 className="text-2xl font-bold text-gray-900 mb-4">
+                    {currentLang === "fr" ? "Résultats du modèle" : "Model results"}
                   </h3>
-                  <p className="text-gray-600 mb-6">
-                    {currentLang === "fr"
-                      ? analysisResult.description ||
-                        "Diagnostic genere par le backend."
-                      : analysisResult.descriptionEn ||
-                        "Diagnosis generated by backend."}
-                  </p>
-
-                  <div className="space-y-4">
-                    <div className="flex items-start gap-3">
-                      <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
-                        <i
-                          data-lucide="spray-can"
-                          className="w-4 h-4 text-blue-600"
-                        ></i>
-                      </div>
-                      <div>
-                        <h4 className="font-semibold text-sm">
-                          {t.recommendedTreatment}
-                        </h4>
-                        <p className="text-sm text-gray-600">
-                          {currentLang === "fr"
-                            ? analysisResult.treatment
-                            : analysisResult.treatmentEn ||
-                              analysisResult.treatment}
-                        </p>
-                      </div>
+                  <div className="space-y-3 text-sm">
+                    <div className="flex items-center justify-between p-3 rounded-lg bg-[#F5F5DC]">
+                      <span className="text-gray-600">
+                        {currentLang === "fr" ? "Classe prédite" : "Predicted class"}
+                      </span>
+                      <span className="font-semibold text-gray-900 text-right ml-4">
+                        {(analysisResult.disease_name ||
+                          (currentLang === "fr"
+                            ? analysisResult.name
+                            : analysisResult.nameEn) ||
+                          "Unknown"
+                        ).replaceAll("___", " / ").replaceAll("_", " ")}
+                      </span>
                     </div>
-                    <div className="flex items-start gap-3">
-                      <div className="w-8 h-8 bg-amber-100 rounded-full flex items-center justify-center flex-shrink-0">
-                        <i
-                          data-lucide="shield"
-                          className="w-4 h-4 text-amber-600"
-                        ></i>
-                      </div>
-                      <div>
-                        <h4 className="font-semibold text-sm">
-                          {t.prevention}
-                        </h4>
-                        <p className="text-sm text-gray-600">
-                          {currentLang === "fr"
-                            ? analysisResult.prevention
-                            : analysisResult.preventionEn ||
-                              analysisResult.prevention}
-                        </p>
-                      </div>
+                    {Array.isArray(analysisResult.top_predictions) &&
+                      analysisResult.top_predictions.length > 0 && (
+                        <div className="p-3 rounded-lg bg-[#F5F5DC]">
+                          <div className="text-gray-600 mb-2">
+                            {currentLang === "fr"
+                              ? "Top 3 prédictions"
+                              : "Top 3 predictions"}
+                          </div>
+                          <div className="space-y-1">
+                            {analysisResult.top_predictions
+                              .slice(0, 3)
+                              .map((pred, idx) => (
+                                <div
+                                  key={`${pred.disease_name}-${idx}`}
+                                  className="flex items-center justify-between text-gray-900"
+                                >
+                                  <span className="text-right ml-4">
+                                    {String(pred.disease_name || "Unknown")
+                                      .replaceAll("___", " / ")
+                                      .replaceAll("_", " ")}
+                                  </span>
+                                  <span className="font-semibold">
+                                    {Number(pred.confidence || 0).toFixed(2)}%
+                                  </span>
+                                </div>
+                              ))}
+                          </div>
+                        </div>
+                      )}
+                    <div className="flex items-center justify-between p-3 rounded-lg bg-[#F5F5DC]">
+                      <span className="text-gray-600">
+                        {currentLang === "fr" ? "Confiance" : "Confidence"}
+                      </span>
+                      <span className="font-semibold text-gray-900">
+                        {Number(analysisResult.confidence).toFixed(2)}%
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between p-3 rounded-lg bg-[#F5F5DC]">
+                      <span className="text-gray-600">{t.processedIn}</span>
+                      <span className="font-semibold text-gray-900">
+                        {analysisResult.execution_time_ms != null
+                          ? `${(analysisResult.execution_time_ms / 1000).toFixed(2)}s`
+                          : "-"}
+                      </span>
                     </div>
                   </div>
 
@@ -1315,9 +1388,11 @@ const HistorySection = ({
             },
           });
         }
+        clearPredictionImages();
         setHistory([]);
       } catch (err) {
         // Keep UI responsive even if backend clear fails.
+        clearPredictionImages();
         setHistory([]);
       }
     }
@@ -1394,17 +1469,18 @@ const HistorySection = ({
                 <div className="p-4">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-xs text-gray-500">
-                      {new Date(item.timestamp || item.created_at).toLocaleDateString(
+                      {new Date(item.created_at).toLocaleDateString(
                         currentLang === "fr" ? "fr-FR" : "en-US"
                       )}
                     </span>
                     <span
                       className={`px-2 py-0.5 rounded text-xs font-medium ${getSeverityColor(
-                        item.severity,
-                        currentLang
+                        item.severityEn || item.severity
                       )}`}
                     >
-                      {currentLang === "fr" ? item.severity : item.severityEn}
+                      {currentLang === "fr"
+                        ? normalizeSeverity(item.severity).fr
+                        : normalizeSeverity(item.severity).en}
                     </span>
                   </div>
                   <h3 className="font-bold text-lg mb-1">
@@ -1467,7 +1543,12 @@ const App = () => {
             Authorization: `Bearer ${currentToken}`,
           },
         });
-        setHistory(data || []);
+        const images = loadPredictionImages();
+        const hydrated = (data || []).map((item) => ({
+          ...item,
+          imageData: images[String(item.id)] || null,
+        }));
+        setHistory(hydrated);
       } catch (err) {
         setHistory([]);
       }

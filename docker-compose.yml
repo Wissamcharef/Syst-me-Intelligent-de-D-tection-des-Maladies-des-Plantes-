@@ -1,0 +1,11 @@
+services:
+  api:
+    build: .
+    container_name: plantai-api
+    ports:
+      - "8001:8000"
+    env_file:
+      - .env
+    volumes:
+      - ./app_data.db:/app/app_data.db
+    restart: unless-stopped
